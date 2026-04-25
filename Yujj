@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>hamidat — deep_void.v4.1</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;400&family=JetBrains+Mono:wght@100&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg: #000000;
+            --text: #ffffff;
+            --dim: #444;
+            --accent: #fff;
+            --grain-opacity: 0.03;
+            /* تأثير الـ CRT/Scanline اختيارياً */
+            --scanlines: 0.03; 
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; cursor: crosshair; }
+        
+        body { 
+            background-color: var(--bg); 
+            color: var(--text); 
+            font-family: 'Inter', sans-serif; 
+            height: 100vh; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            overflow: hidden; 
+            position: relative;
+        }
+
+        /* --- طبقة حبيبات الفيلم الهادئة (Film Grain) --- */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3%3Cfilter id='noiseFilter'%3%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3%3C/filter%3%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3%3C/svg%3%3e");
+            opacity: var(--grain-opacity);
+            pointer-events: none;
+            z-index: 99;
+        }
+
+        /* --- تأثير الهالة حول الماوس (Radial Cursor Halo) --- */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            background: radial-gradient(circle 150px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255,255,255,0.04), transparent 80%);
+            z-index: 100;
+        }
+
+        /* --- شاشة البداية المحسنة --- */
+        #splash { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: #000; z-index: 200; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            transition: opacity 2.5s cubic-bezier(0.4, 0, 0.2, 1), visibility 2.5s; 
+            cursor: pointer; 
+        }
+        
+        #splash h1 { 
+            font-size: clamp(20px, 5vw, 28px); 
+            letter-spacing: 0.8em; font-weight: 300; 
+            margin-bottom: 20px; padding-left: 0.8em; 
+            color: #fff; text-shadow: 0 0 15px rgba(255, 255, 255, 0.2); 
+            animation: pulse 4s infinite; 
+            position: relative;
+        }
+
+        /* تأثير Glitch بسيط عند الـ hover على العنوان */
+        #splash h1:hover::before, #splash h1:hover::after {
+            content: attr(data-text);
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000;
+        }
+        #splash h1:hover::before { left: 2px; text-shadow: -2px 0 #ff00c1; clip: rect(44px, 450px, 56px, 0); animation: glitch-anim 5s infinite linear alternate-reverse; }
+        #splash h1:hover::after { left: -2px; text-shadow: -2px 0 #00fff9; clip: rect(85px, 450px, 140px, 0); animation: glitch-anim2 5s infinite linear alternate-reverse; }
+
+        @keyframes pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+        
+        /* --- الكانفاس للمطر التفاعلي --- */
+        #canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+
+        /* --- الحاوية الرئيسية المحسنة للموبايل --- */
+        .wrapper { 
+            position: relative; z-index: 10; 
+            width: 100%; max-width: 500px; 
+            padding: clamp(20px, 5vw, 40px); 
+            opacity: 0; transform: translateY(20px) scale(0.98); 
+            transition: all 3s ease 1s; 
+            text-align: center;
+        }
+        .wrapper.reveal { opacity: 1; transform: translateY(0) scale(1); }
+
+        header { 
+            font-size: clamp(7px, 2vw, 8px); 
+            letter-spacing: 0.8em; color: var(--dim); 
+            margin-bottom: clamp(40px, 10vw, 70px); 
+            text-transform: uppercase; 
+            position: relative; display: inline-block;
+        }
+
+        #quote-container { position: relative; min-height: 120px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        #quote { 
+            font-size: clamp(14px, 4vw, 16px); 
+            line-height: 2; font-weight: 200; 
+            letter-spacing: 0.05em; color: #eee; 
+            transition: opacity 0.5s;
+        }
+        #suffix { 
+            color: var(--dim); 
+            font-size: clamp(9px, 2.5vw, 10px); 
+            font-family: 'JetBrains Mono', monospace; 
+            margin-top: 15px; opacity: 0.6; 
+            transition: opacity 0.5s;
+        }
+        
+        /* --- القائمة والأزرار بتأثير Glitch عند الـ Hover --- */
+        .nav { 
+            margin-top: clamp(40px, 10vw, 70px); 
+            display: flex; gap: clamp(15px, 4vw, 30px); 
+            flex-wrap: wrap; justify-content: center;
+        }
+        
+        button { 
+            background: none; border: none; 
+            color: var(--dim); 
+            font-size: clamp(7px, 2vw, 8px); 
+            text-transform: uppercase; letter-spacing: 0.3em; 
+            cursor: pointer; transition: 0.5s; 
+            border-bottom: 1px solid transparent; 
+            padding-bottom: 5px; 
+            position: relative;
+        }
+        
+        button:hover { 
+            color: #fff; 
+            border-bottom: 1px solid #fff; 
+            text-shadow: 0 0 5px #fff; 
+        }
+
+        /* Glitch تأثير خفيف للأزرار */
+        button:hover::before {
+            content: '';
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.1);
+            animation: glitch-blink 0.3s steps(2, start) infinite;
+            opacity: 0;
+        }
+        button:hover:active::before { opacity: 1; }
+
+        /* --- أدوات التحكم في الصوت ومؤشر الحالة --- */
+        #ui-controls {
+            position: fixed; bottom: 20px; right: 20px;
+            display: flex; flex-direction: column; align-items: flex-end;
+            gap: 10px; z-index: 110;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 8px; letter-spacing: 2px;
+            opacity: 0.2; transition: opacity 0.5s;
+        }
+        #ui-controls:hover { opacity: 1; }
+
+        #player-status { color: var(--dim); }
+        
+        .audio-visualizer { display: flex; gap: 2px; height: 10px; align-items: flex-end; }
+        .bar { width: 2px; background: var(--dim); animation: equalize 1s infinite; }
+        .bar:nth-child(1) { animation-delay: 0.1s; height: 60%; }
+        .bar:nth-child(2) { animation-delay: 0.3s; height: 100%; }
+        .bar:nth-child(3) { animation-delay: 0.2s; height: 80%; }
+
+        #volume-control {
+            display: flex; align-items: center; gap: 10px;
+        }
+        input[type=range] {
+            -webkit-appearance: none; width: 60px; background: transparent;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 1px; cursor: pointer; background: var(--dim);
+        }
+        input[type=range]::-webkit-slider-thumb {
+            height: 6px; width: 6px; border-radius: 50%; background: #fff;
+            cursor: pointer; -webkit-appearance: none; margin-top: -2.5px;
+            box-shadow: 0 0 5px #fff;
+        }
+
+        /* --- Animations --- */
+        @keyframes equalize { 0%, 100% { transform: scaleY(0.5); } 50% { transform: scaleY(1); } }
+        @keyframes glitch-blink { 0% { opacity: 0; } 50% { opacity: 1; } 100% { opacity: 0; } }
+        @keyframes glitch-anim { 0% { clip: rect(31px, 9999px, 94px, 0); } 20% { clip: rect(88px, 9999px, 14px, 0); } 40% { clip: rect(11px, 9999px, 81px, 0); } 60% { clip: rect(93px, 9999px, 34px, 0); } 80% { clip: rect(41px, 9999px, 99px, 0); } 100% { clip: rect(72px, 9999px, 5px, 0); } }
+        @keyframes glitch-anim2 { 0% { clip: rect(113px, 9999px, 12px, 0); } 20% { clip: rect(25px, 9999px, 114px, 0); } 40% { clip: rect(98px, 9999px, 63px, 0); } 60% { clip: rect(15px, 9999px, 102px, 0); } 80% { clip: rect(104px, 9999px, 31px, 0); } 100% { clip: rect(33px, 9999px, 89px, 0); } }
+
+        /* موبايل لاندسكيب أو شاشات صغيرة جداً */
+        @media (max-height: 450px) {
+            .wrapper { padding: 15px; }
+            header { margin-bottom: 20px; }
+            .nav { margin-top: 20px; }
+            #ui-controls { bottom: 10px; right: 10px; flex-direction: row; align-items: center; }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="canvas"></canvas>
+
+    <div id="splash" onclick="unlockAudio()">
+        <h1 data-text="HAMIDAT">HAMIDAT</h1>
+        <p style="font-size: 7px; color: #444; letter-spacing: 0.6em; margin-top: 10px;">LISTEN TO THE SILENCE</p>
+    </div>
+
+    <div class="wrapper" id="mainContent">
+        <header>core_archive / v_4.1</header>
+        <div id="quote-container">
+            <div id="quote"></div>
+            <div id="suffix"></div>
+        </div>
+
+        <div class="nav">
+            <button onclick="nextThought()">next_entry</button>
+            <button onclick="playAlternative()">switch_frequency</button>
+            <button onclick="copyText()">export_ref</button>
+            <button id="save-btn" onclick="toggleFavorite()">save_void</button>
+        </div>
+    </div>
+
+    <div id="ui-controls">
+        <div class="audio-visualizer">
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+        </div>
+        <div id="player-status">SIGNAL: ACTIVE</div>
+        <div id="volume-control">
+            <button onclick="toggleMute()" style="letter-spacing: 0; padding: 0; border: none;" id="mute-icon">VOL</button>
+            <input type="range" id="volume-slider" min="0" max="100" value="50" oninput="setVolume(this.value)">
+        </div>
+    </div>
+
+    <div style="display:none"><div id="yt-player"></div></div>
+
+    <script>
+        // --- قاعدة البيانات وإدارة المفضلة (localStorage) ---
+        const database = [
+            { q: "We are all ghosts driving meat-covered skeletons made of stardust.", s: "// biological_error" },
+            { q: "The universe doesn't hear your prayers, it only hears your heartbeat.", s: "// cosmic_indifference" },
+            { q: "Memory is a way of holding onto the things you love, the things you are, the things you never want to lose.", s: "// neural_pathway" },
+            { q: "Hell is empty and all the devils are here.", s: "// social_construct" },
+            { q: "In the end, we will all become stories that nobody tells anymore.", s: "// final_entropy" },
+            { q: "You are not a drop in the ocean. You are the entire ocean in a drop.", s: "// singular_illusion" },
+            { q: "The void is not empty, it is full of everything we've lost.", s: "// primal_memory" }
+        ];
+
+        let currentQuoteIndex = -1;
+
+        // --- محرك الماوس لتأثير الهالة ---
+        document.addEventListener('mousemove', e => {
+            document.body.style.setProperty('--mouse-x', e.clientX + 'px');
+            document.body.style.setProperty('--mouse-y', e.clientY + 'px');
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+        });
+
+        // --- محرك الموسيقى (YouTube) المحسن ---
+        var tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        var player;
+        const track1 = 'LiSRm_L68cc'; // snowfall
+        const track2 = '4p_K6B7vQ6I'; // dark ambient
+
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('yt-player', {
+                height: '0', width: '0',
+                videoId: track1,
+                playerVars: { 'autoplay': 0, 'loop': 1, 'playlist': track1, 'controls': 0, 'modestbranding': 1, 'rel': 0 }
+            });
+        }
+
+        function unlockAudio() {
+            if (player && player.playVideo) {
+                player.playVideo();
+                player.setVolume(50);
+                updateVisualizer(true);
+            }
+            document.getElementById('splash').style.opacity = '0';
+            document.getElementById('splash').style.visibility = 'hidden';
+            setTimeout(() => {
+                document.getElementById('mainContent').classList.add('reveal');
+                // عرض الاقتباس الأول تلقائياً
+                nextThought();
+            }, 2500);
+        }
+
+        function playAlternative() {
+            if (player) {
+                const currentId = player.getVideoData().video_id;
+                const nextId = (currentId === track1) ? track2 : track1;
+                player.loadVideoById(nextId);
+                updateVisualizer(true);
+            }
+        }
+
+        // تحكم الصوت
+        let currentVolume = 50;
+        let isMuted = false;
+
+        function setVolume(value) {
+            currentVolume = value;
+            if (player && !isMuted) player.setVolume(value);
+        }
+
+        function toggleMute() {
+            isMuted = !isMuted;
+            const btn = document.getElementById('mute-icon');
+            if (isMuted) {
+                if (player) player.mute();
+                btn.innerText = "MUT";
+                btn.style.color = "#888";
+                updateVisualizer(false);
+            } else {
+                if (player) player.unMute();
+                btn.innerText = "VOL";
+                btn.style.color = "var(--dim)";
+                updateVisualizer(true);
+            }
+        }
+
+        function updateVisualizer(active) {
+            const bars = document.querySelectorAll('.audio-visualizer .bar');
+            bars.forEach(bar => {
+                bar.style.animationPlayState = active ? 'running' : 'paused';
+                bar.style.background = active ? 'var(--accent)' : 'var(--dim)';
+            });
+            document.getElementById('player-status').innerText = active ? "SIGNAL: ACTIVE" : "SIGNAL: MUTED";
+            document.getElementById('player-status').style.color = active ? "#fff" : "var(--dim)";
+        }
+
+        // --- محرك الكتابة التدريجية ---
+        async function typeWriter(element, text, speed) {
+            element.style.opacity = "0.5";
+            element.innerText = "";
+            for (let i = 0; i < text.length; i++) {
+                element.innerText += text.charAt(i);
+                await new Promise(r => setTimeout(r, speed));
+            }
+            element.style.opacity = "1";
+        }
+
+        async function nextThought() {
+            // تجنب تكرار نفس الاقتباس
+            let nextIndex;
+            do {
+                nextIndex = Math.floor(Math.random() * database.length);
+            } while (nextIndex === currentQuoteIndex);
+            
+            currentQuoteIndex = nextIndex;
+            const item = database[currentQuoteIndex];
+
+            // تأثير اختفاء قبل الكتابة
+            document.getElementById('quote').style.opacity = 0;
+            document.getElementById('suffix').style.opacity = 0;
+            await new Promise(r => setTimeout(r, 500));
+
+            await typeWriter(document.getElementById('quote'), item.q, 45);
+            document.getElementById('suffix').innerText = item.s;
+            document.getElementById('suffix').style.opacity = 0.6;
+            
+            updateFavoriteButton();
+        }
+
+        // --- إدارة المفضلة ---
+        function toggleFavorite() {
+            let favorites = JSON.parse(localStorage.getItem('void_favorites')) || [];
+            const currentQuote = database[currentQuoteIndex].q;
+            
+            const index = favorites.indexOf(currentQuote);
+            if (index === -1) {
+                favorites.push(currentQuote);
+                localStorage.setItem('void_favorites', JSON.stringify(favorites));
+            } else {
+                favorites.splice(index, 1);
+                localStorage.setItem('void_favorites', JSON.stringify(favorites));
+            }
+            updateFavoriteButton();
+        }
+
+        function updateFavoriteButton() {
+            const favorites = JSON.parse(localStorage.getItem('void_favorites')) || [];
+            const currentQuote = database[currentQuoteIndex].q;
+            const btn = document.getElementById('save-btn');
+            
+            if (favorites.indexOf(currentQuote) !== -1) {
+                btn.innerText = "saved_void";
+                btn.style.color = "#fff";
+                btn.style.borderBottom = "1px solid #fff";
+            } else {
+                btn.innerText = "save_void";
+                btn.style.color = "var(--dim)";
+                btn.style.borderBottom = "1px solid transparent";
+            }
+        }
+
+        // --- محرك المطر التفاعلي والذكي ---
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let w, h;
+        let mouse = { x: -1000, y: -1000 }; // خارج الشاشة مبدئياً
+        
+        function resize() { 
+            w = canvas.width = window.innerWidth; 
+            h = canvas.height = window.innerHeight; 
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        const rainCount = Math.min(100, (w * h) / 10000); // عدد القطرات بناءً على مساحة الشاشة
+        const rain = Array.from({ length: rainCount }, () => ({
+            x: Math.random() * w,
+            y: Math.random() * h,
+            l: Math.random() * 20 + 5, // طول متغير
+            v: Math.random() * 3 + 2, // سرعة متغيرة
+            a: Math.random() * 0.05 + 0.02 // شفافية متغيرة
+        }));
+
+        function draw() {
+            // مسح تدريجي للشاشة لخلق تأثير ذيل (Trail)
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)'; 
+            ctx.fillRect(0, 0, w, h);
+            
+            ctx.lineWidth = 1;
+            
+            rain.forEach(r => {
+                // تفاعل المطر مع الماوس (الابتعاد)
+                let dx = r.x - mouse.x;
+                let dy = r.y - mouse.y;
+                let dist = Math.sqrt(dx*dx + dy*dy);
+                let force = 0;
+                
+                // إذا كانت القطر قريبة من الماوس، قم بدفعها أفقياً
+                if (dist < 100) {
+                    force = (100 - dist) / 100; // القوة تزيد كلما زاد القرب
+                    let push = force * 2 * (dx > 0 ? 1 : -1); // الدفع يسار أو يمين
+                    r.x += push;
+                }
+
+                ctx.strokeStyle = `rgba(255, 255, 255, ${r.a})`;
+                ctx.beginPath();
+                ctx.moveTo(r.x, r.y);
+                // جعل اتجاه القطر يتأثر قليلاً بالقوة (اختياري)
+                ctx.lineTo(r.x + force * (dx > 0 ? 1 : -1) * 2, r.y + r.l);
+                ctx.stroke();
+                
+                r.y += r.v;
+                
+                // إعادة تدوير القطرة عند الخروج من الشاشة أو الابتعاد كثيراً أفقياً
+                if (r.y > h || r.x > w + 50 || r.x < -50) {
+                    r.y = -r.l;
+                    r.x = Math.random() * w;
+                    r.v = Math.random() * 3 + 2;
+                }
+            });
+            requestAnimationFrame(draw);
+        }
+        draw();
+
+        // --- وظائف عامة ---
+        function copyText() {
+            const textToCopy = document.getElementById('quote').innerText + " " + document.getElementById('suffix').innerText;
+            navigator.clipboard.writeText(textToCopy);
+            const btn = event.target;
+            const originalText = btn.innerText;
+            btn.innerText = "COPIED";
+            btn.style.color = "#fff";
+            setTimeout(() => {
+                btn.innerText = originalText;
+                btn.style.color = "var(--dim)";
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
